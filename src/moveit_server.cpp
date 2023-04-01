@@ -62,7 +62,7 @@ void goalCb(const control_msgs::FollowJointTrajectoryGoalConstPtr& torso_goal, S
     JointValue joint_pose;
     float lastDuration=0.0;
     OptionalCond* p = nullptr;
-    for (int i=1; i<point_num; i++) {        
+    for (int i= 0; i<point_num; i++) {
         joint_pose.jVal[0] = torso_goal->trajectory.points[i].positions[0];
         joint_pose.jVal[1] = torso_goal->trajectory.points[i].positions[1];
         joint_pose.jVal[2] = torso_goal->trajectory.points[i].positions[2];
@@ -72,10 +72,10 @@ void goalCb(const control_msgs::FollowJointTrajectoryGoalConstPtr& torso_goal, S
         float Duration=torso_goal->trajectory.points[i].time_from_start.toSec();
         float dt=Duration-lastDuration;
         lastDuration=Duration;
-        // int step_num=int (dt/0.008+0.5);
+//         int step_num=int (dt/0.008+0.5);
         int step_num=int (dt/0.008);
         int sdk_res=robot.servo_j(&joint_pose, MoveMode::ABS, step_num);
-        // int sdk_res=robot.joint_move(&joint_pose,MoveMode::ABS,1,1,1,0.5,p);
+//         int sdk_res=robot.joint_move(&joint_pose,MoveMode::ABS,1,1,1,0.5,p);
         if (sdk_res !=0)
         {
             ROS_INFO("servo_j movement failed");
@@ -140,8 +140,8 @@ int main(int argc, char *argv[])
 
     //创建action服务端对象
     //Server moveit_server(nh, "/jaka_zu3_controller/follow_joint_trajectory", boost::bind(&goalCb, _1, &moveit_server), false);
-    //Server moveit_server(nh, "/jaka_zu5_controller/follow_joint_trajectory", boost::bind(&goalCb, _1, &moveit_server), false);
-    Server moveit_server(nh, "/jaka_zu7_controller/follow_joint_trajectory", boost::bind(&goalCb, _1, &moveit_server), false);
+    Server moveit_server(nh, "/jaka_zu5_controller/follow_joint_trajectory", boost::bind(&goalCb, _1, &moveit_server), false);
+//    Server moveit_server(nh, "/jaka_zu7_controller/follow_joint_trajectory", boost::bind(&goalCb, _1, &moveit_server), false);
     //Server moveit_server(nh, "/jaka_zu12_controller/follow_joint_trajectory", boost::bind(&goalCb, _1, &moveit_server), false);
     //Server moveit_server(nh, "/jaka_zu18_controller/follow_joint_trajectory", boost::bind(&goalCb, _1, &moveit_server), false);
     //Server moveit_server(nh, "/jaka_minicobo_controller/follow_joint_trajectory", boost::bind(&goalCb, _1, &moveit_server), false);

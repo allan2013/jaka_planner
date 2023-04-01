@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # !/usr/bin/python
 
-import time
-import copy
+
 import csv
 import rospy
 import moveit_commander
 import actionlib
 import geometry_msgs.msg
+import rospy.timer
 from trajectory_msgs.msg import JointTrajectoryPoint
 from moveit_msgs.srv import GetCartesianPath
 from moveit_msgs.srv import GetPositionIK, GetPositionIKRequest, GetPositionIKResponse
@@ -18,19 +18,26 @@ from moveit_msgs.msg import PickupAction, PickupGoal, Grasp, \
 from control_msgs.msg import FollowJointTrajectoryGoal
 from control_msgs.msg import FollowJointTrajectoryAction
 import numpy as np
+import os
+
+
+
 
 
 class MotionPlanner:
     def __init__(self):
+        file_name = rospy.get_param('~file_name')
+        self.file_directory = os.path.dirname(__file__) + "/" + file_name
+
         self.robot = moveit_commander.RobotCommander()
         self.scene = moveit_commander.PlanningSceneInterface()
-        self.moveit_group = moveit_commander.MoveGroupCommander("jaka_zu7")
+        self.moveit_group = moveit_commander.MoveGroupCommander("jaka_zu5")
         self.way_points = []
-        real = False
-        if real:
+        first = False
+        if first:
             fjtname = '/follow_joint_trajectory'
         else:
-            fjtname = '/jaka_zu7_controller/follow_joint_trajectory'
+            fjtname = '/jaka_zu5_controller/follow_joint_trajectory'
         self.action_client = actionlib.SimpleActionClient(fjtname, FollowJointTrajectoryAction)
 
         rospy.loginfo('waiting for follow_joint_trajectory action.')
@@ -38,7 +45,7 @@ class MotionPlanner:
         rospy.loginfo('ok!')
 
     def load_csv(self):
-        with open('test_JAKA.csv') as csv_file:
+        with open(self.file_directory) as csv_file:
             reader = csv.reader(csv_file)
             line_count = 0
             for row in reader:
@@ -94,21 +101,27 @@ class MotionPlanner:
         self.action_client.send_goal(goal)
         rospy.loginfo("action_send_goal")
 
-    def run(self):
+    def go_to_zero_pos(self):
         current_state = self.moveit_group.get_current_state()
         print(current_state)
         print("==================================")
 
-        self.moveit_group.set_joint_value_target(arg1=current_state.joint_state)
+        target_state = current_state
+        target_state.joint_state.position = list(np.zeros(len(current_state.joint_state.position)))
+        self.moveit_group.set_joint_value_target(arg1=target_state.joint_state)
+        plan = self.moveit_group.plan()
+        self.action_send_goal(plan)
+        print("=========Go to Zero state=============")
+        rospy.timer.sleep(2)
 
+
+    def run(self):
+        self.moveit_group.set_start_state_to_current_state()
         plan = self.moveit_group.plan()
         plan.joint_trajectory.points = self.way_points
-        # print(plan)
-
         # self.moveit_group.execute(plan)
         self.action_send_goal(plan)
 
-        pass
 
 
 if __name__ == '__main__':
