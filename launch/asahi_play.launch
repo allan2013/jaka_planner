@@ -1,0 +1,6 @@
+<launch>
+<!--	<param name="file_name" type="str" value="test_JAKA.csv"/>-->
+	<node pkg="jaka_planner" type="asahi.py" name="asahi_play" output="screen">
+		<param name="file_name" value="zu5_jaka_01_230320182040.csv"/>
+	</node>
+</launch>
