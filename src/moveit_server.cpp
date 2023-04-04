@@ -9,6 +9,7 @@
 #include <trajectory_msgs/JointTrajectory.h>
 #include <string>
 #include <map>
+#include <vector>
 
 using namespace std;
 JAKAZuRobot robot;
@@ -52,44 +53,112 @@ bool jointStates(JointValue joint_pose)
     return joint_state;
 }
 
+bool checkJointVelocity(JointValue prev, JointValue current, float dt)
+{
+    const std::vector<float> vel_limit = {1.57, 1.57, 1.57, 1.57, 1.57, 1.57};
+    const int joint_num = vel_limit.size();
+    if (dt == 0.)
+    {
+        ROS_ERROR("dt is 0.");
+        return false;
+    }
+
+    for (int i=0; i<joint_num; i++)
+    {
+        float vel = (current.jVal[i] - prev.jVal[i]) / dt;
+        if (vel > vel_limit[i])
+        {
+            ROS_ERROR("joint_vel[%d] = %f is beyond limit.",i, vel);
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool checkInitialJointValue(JointValue initial)
+{
+    const int joint_num = 6;
+    const float threshold = 0.0174; //rad
+    RobotStatus robotstatus;
+    robot.get_robot_status(&robotstatus);
+
+    for (int i=0; i<joint_num; i++)
+    {
+        float dis = initial.jVal[i] - robotstatus.joint_position[i];
+        if (dis > threshold)
+        {
+            ROS_ERROR("Initial joint_pos[%d] is beyond 1 deg(%f).", i, dis);
+            return false;
+        }
+    }
+
+    return true;
+}
+
 //Moveit的服务端
 void goalCb(const control_msgs::FollowJointTrajectoryGoalConstPtr& torso_goal, Server* as)
 {
     BOOL in_pos;
     robot.servo_move_enable(true);
     int point_num=torso_goal->trajectory.points.size();
-    ROS_INFO("number of points: %d",point_num);
-    JointValue joint_pose;
-    float lastDuration=0.0;
+    const int joint_num = 6;
+    ROS_INFO("number of points: %d", point_num);
+
+    JointValue initial_joint_pose;
+    for (int i = 0; i < joint_num; i++)
+    {
+        initial_joint_pose.jVal[i] = torso_goal->trajectory.points[0].positions[i];
+    }
+
+    if (!checkInitialJointValue(initial_joint_pose))
+    {
+        ROS_ERROR("Initial joint value is invalid. Execution is abandoned.");
+        return;
+    }
+
+    JointValue last_joint_pose = initial_joint_pose;
+    float last_duration=0.0;
+
     OptionalCond* p = nullptr;
-    for (int i= 0; i<point_num; i++) {
-        joint_pose.jVal[0] = torso_goal->trajectory.points[i].positions[0];
-        joint_pose.jVal[1] = torso_goal->trajectory.points[i].positions[1];
-        joint_pose.jVal[2] = torso_goal->trajectory.points[i].positions[2];
-        joint_pose.jVal[3] = torso_goal->trajectory.points[i].positions[3];
-        joint_pose.jVal[4] = torso_goal->trajectory.points[i].positions[4];
-        joint_pose.jVal[5] = torso_goal->trajectory.points[i].positions[5];      
-        float Duration=torso_goal->trajectory.points[i].time_from_start.toSec();
-        float dt=Duration-lastDuration;
-        lastDuration=Duration;
+    JointValue joint_pose;
+    for (int i = 1; i < point_num; i++)
+    {
+        for (int j = 0; j < joint_num; j++)
+        {
+            joint_pose.jVal[j] = torso_goal->trajectory.points[i].positions[j];
+        }
+
+        float duration=torso_goal->trajectory.points[i].time_from_start.toSec();
+        float dt=duration-last_duration;
+
+        if (!checkJointVelocity(last_joint_pose, joint_pose, dt))
+        {
+            ROS_ERROR("Velocity is invalid. Execution is abandoned.");
+            return;
+        }
 //         int step_num=int (dt/0.008+0.5);
         int step_num=int (dt/0.008);
         int sdk_res=robot.servo_j(&joint_pose, MoveMode::ABS, step_num);
 //         int sdk_res=robot.joint_move(&joint_pose,MoveMode::ABS,1,1,1,0.5,p);
         if (sdk_res !=0)
         {
-            ROS_INFO("servo_j movement failed");
+            ROS_ERROR("servo_j movement failed.");
+            return;
         } 
         ROS_INFO("The return status of servo_j:%d",sdk_res);
         ROS_INFO("Accepted joint angle: %f %f %f %f %f %f %f %d", joint_pose.jVal[0],joint_pose.jVal[1],joint_pose.jVal[2],joint_pose.jVal[3],joint_pose.jVal[4],joint_pose.jVal[5],dt,step_num);
-        }
+
+        last_duration=duration;
+        last_joint_pose=joint_pose;
+    }
     as->setSucceeded();
     while(true)
     {
         if(jointStates(joint_pose))
         {
             robot.servo_move_enable(false);
-            ROS_INFO("Servo mode enable off");
+            ROS_INFO("Servo mode enable off.");
             break;
         }
         ros::Duration(1).sleep();
