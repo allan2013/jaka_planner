@@ -85,7 +85,7 @@ bool checkInitialJointValue(JointValue initial)
 
     for (int i=0; i<joint_num; i++)
     {
-        float dis = initial.jVal[i] - robotstatus.joint_position[i];
+        float dis = abs(initial.jVal[i] - robotstatus.joint_position[i]);
         if (dis > threshold)
         {
             ROS_ERROR("Initial joint_pos[%d] is beyond 1 deg(%f).", i, dis);
@@ -163,8 +163,6 @@ void goalCb(const control_msgs::FollowJointTrajectoryGoalConstPtr& torso_goal, S
         }
         ros::Duration(1).sleep();
     }
-    
-
 }
 
 //向move_group发送实体机器人的关节信息
